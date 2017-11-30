@@ -53,8 +53,7 @@ class ObligationTests {
     private val outState = inState.copy(beneficiary = AnonymousParty(BOB_PUBKEY))
     private val miniCorpServices = MockServices(listOf("net.corda.finance.contracts.asset"), MINI_CORP.name, MINI_CORP_KEY)
     private val notaryServices = MockServices(DUMMY_NOTARY_KEY)
-    private val mockService = MockServices(listOf("net.corda.finance.contracts.asset"))
-
+    private val cordappPackages = listOf("net.corda.finance.contracts.asset")
     private fun cashObligationTestRoots(
             group: LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter>
     ) = group.apply {
@@ -340,7 +339,7 @@ class ObligationTests {
     @Test
     fun `close-out netting`() {
         // Try netting out two obligations
-        ledger(mockService) {
+        ledger(cordappPackages) {
             cashObligationTestRoots(this)
             transaction("Issuance") {
                 attachments(Obligation.PROGRAM_ID)
@@ -356,7 +355,7 @@ class ObligationTests {
 
         // Try netting out two obligations, with the third uninvolved obligation left
         // as-is
-        ledger(mockService) {
+        ledger(cordappPackages) {
             cashObligationTestRoots(this)
             transaction("Issuance") {
                 attachments(Obligation.PROGRAM_ID)
@@ -402,7 +401,7 @@ class ObligationTests {
     @Test
     fun `payment netting`() {
         // Try netting out two obligations
-        ledger(mockService) {
+        ledger(cordappPackages) {
             cashObligationTestRoots(this)
             transaction("Issuance") {
                 attachments(Obligation.PROGRAM_ID)
@@ -430,7 +429,7 @@ class ObligationTests {
         }
 
         // Multilateral netting, A -> B -> C which can net down to A -> C
-        ledger(mockService) {
+        ledger(cordappPackages) {
             cashObligationTestRoots(this)
             transaction("Issuance") {
                 attachments(Obligation.PROGRAM_ID)
@@ -445,7 +444,7 @@ class ObligationTests {
         }
 
         // Multilateral netting without the key of the receiving party
-        ledger(mockService) {
+        ledger(cordappPackages) {
             cashObligationTestRoots(this)
             transaction("Issuance") {
                 attachments(Obligation.PROGRAM_ID)

@@ -2,6 +2,8 @@
 
 package net.corda.testing
 
+import com.nhaarman.mockito_kotlin.any
+import com.nhaarman.mockito_kotlin.doAnswer
 import com.nhaarman.mockito_kotlin.doReturn
 import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.context.Actor
@@ -11,19 +13,43 @@ import net.corda.core.context.Origin
 import net.corda.core.flows.FlowLogic
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.internal.FlowStateMachine
+import net.corda.core.internal.uncheckedCast
 import net.corda.core.node.ServiceHub
+import net.corda.core.node.services.IdentityService
+import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.getOrThrow
 import net.corda.core.utilities.seconds
+import net.corda.node.internal.cordapp.CordappLoader
 import net.corda.node.services.api.StartedNodeServices
 import net.corda.node.services.config.CertChainPolicyConfig
 import net.corda.nodeapi.internal.persistence.DatabaseConfig
 import net.corda.node.services.config.NodeConfiguration
 import net.corda.node.services.config.VerifierType
 import net.corda.nodeapi.internal.config.User
+import net.corda.testing.node.MockAttachmentStorage
+import net.corda.testing.node.MockCordappProvider
 import net.corda.testing.node.MockServices
 import net.corda.testing.node.MockServices.Companion.makeTestDataSourceProperties
+import net.corda.testing.node.MockTransactionStorage
 import java.nio.file.Path
+
+fun ledgerServices(cordappPackages: List<String>): ServiceHub {
+    abstract class AbstractServiceHub : ServiceHub
+    return rigorousMock<AbstractServiceHub>().also {
+        doReturn(MockAttachmentStorage()).whenever(it).attachments
+        doReturn(MockCordappProvider(CordappLoader.createWithTestPackages(cordappPackages), it.attachments)).whenever(it).cordappProvider
+        doReturn(rigorousMock<IdentityService>().also {
+            doReturn(null).whenever(it).partyFromKey(any())
+        }).whenever(it).identityService
+        val validatedTransactions = MockTransactionStorage()
+        doAnswer { invocation ->
+            val txs: Iterable<SignedTransaction> = uncheckedCast(invocation.arguments[0])
+            txs.forEach { validatedTransactions.addTransaction(it) }
+        }.whenever(it).recordTransactions(any<Iterable<SignedTransaction>>())
+        delegateTo(validatedTransactions).whenever(it).loadState(any())
+    }
+}
 
 /**
  * Creates and tests a ledger built by the passed in dsl. The provided services can be customised, otherwise a default
@@ -31,7 +57,12 @@ import java.nio.file.Path
  */
 @JvmOverloads
 fun ledger(
-        services: ServiceHub = MockServices(),
+        cordappPackages: List<String> = emptyList(),
+        dsl: LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter>.() -> Unit
+) = ledger(ledgerServices(cordappPackages), dsl)
+
+fun ledger(
+        services: ServiceHub,
         dsl: LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter>.() -> Unit
 ): LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter> {
     return LedgerDSL(TestLedgerDSLInterpreter(services)).also { dsl(it) }
@@ -47,7 +78,7 @@ fun transaction(
         transactionBuilder: TransactionBuilder = TransactionBuilder(notary = DUMMY_NOTARY),
         cordappPackages: List<String> = emptyList(),
         dsl: TransactionDSL<TransactionDSLInterpreter>.() -> EnforceVerifyOrFail
-) = ledger(services = MockServices(cordappPackages)) {
+) = ledger(cordappPackages) {
     dsl(TransactionDSL(TestTransactionDSLInterpreter(this.interpreter, transactionBuilder)))
 }
 

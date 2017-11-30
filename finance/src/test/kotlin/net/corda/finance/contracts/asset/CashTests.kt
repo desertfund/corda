@@ -774,9 +774,7 @@ class CashTests {
     // Double spend.
     @Test
     fun chainCashDoubleSpendFailsWith() {
-        val mockService = MockServices(listOf("net.corda.finance.contracts.asset"), MEGA_CORP.name, MEGA_CORP_KEY)
-
-        ledger(mockService) {
+        ledger(listOf("net.corda.finance.contracts.asset")) {
             unverifiedTransaction {
                 attachment(Cash.PROGRAM_ID)
                 output(Cash.PROGRAM_ID, "MEGA_CORP cash",

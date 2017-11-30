@@ -1,19 +1,13 @@
 package net.corda.nodeapi.internal
 
-import com.nhaarman.mockito_kotlin.doReturn
-import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.contracts.*
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
-import net.corda.core.node.ServicesForResolution
 import net.corda.core.serialization.deserialize
 import net.corda.core.serialization.serialize
 import net.corda.core.transactions.LedgerTransaction
 import net.corda.core.transactions.TransactionBuilder
-import net.corda.node.internal.cordapp.CordappLoader
-import net.corda.node.internal.cordapp.CordappProviderImpl
 import net.corda.testing.*
-import net.corda.testing.node.MockAttachmentStorage
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -48,14 +42,10 @@ class AttachmentsClassLoaderStaticContractTests {
         }
     }
 
-    private val serviceHub = rigorousMock<ServicesForResolution>().also {
-        doReturn(CordappProviderImpl(CordappLoader.createWithTestPackages(listOf("net.corda.nodeapi.internal")), MockAttachmentStorage())).whenever(it).cordappProvider
-    }
-
     @Test
     fun `test serialization of WireTransaction with statically loaded contract`() {
         val tx = AttachmentDummyContract().generateInitial(MEGA_CORP.ref(0), 42, DUMMY_NOTARY)
-        val wireTransaction = tx.toWireTransaction(serviceHub)
+        val wireTransaction = tx.toWireTransaction(ledgerServices(listOf("net.corda.nodeapi.internal")))
         val bytes = wireTransaction.serialize()
         val copiedWireTransaction = bytes.deserialize()
 

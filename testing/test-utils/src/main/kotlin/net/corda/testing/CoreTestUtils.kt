@@ -3,6 +3,7 @@
 
 package net.corda.testing
 
+import com.nhaarman.mockito_kotlin.doAnswer
 import net.corda.core.contracts.StateRef
 import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.generateKeyPair
@@ -193,4 +194,8 @@ fun <T> rigorousMock(clazz: Class<T>): T = mock(clazz) {
     } else {
         it.callRealMethod()
     }
+}
+
+fun delegateTo(that: Any) = doAnswer {
+    it.method.invoke(that, *it.arguments)
 }
