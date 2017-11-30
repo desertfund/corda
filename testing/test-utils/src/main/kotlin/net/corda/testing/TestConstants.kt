@@ -88,3 +88,6 @@ object DummyCommandData : TypeOnlyCommandData()
 
 val DUMMY_IDENTITY_1: PartyAndCertificate get() = getTestPartyAndCertificate(DUMMY_PARTY)
 val DUMMY_PARTY: Party get() = Party(CordaX500Name(organisation = "Dummy", locality = "Madrid", country = "ES"), DUMMY_KEY_1.public)
+
+/** Maximum artemis message size. 10 MiB maximum allowed file size for attachments, including message headers. */
+val MAX_MESSAGE_SIZE: Int = 1048576
