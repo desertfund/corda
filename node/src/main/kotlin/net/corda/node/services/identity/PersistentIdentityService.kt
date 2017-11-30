@@ -25,6 +25,7 @@ import javax.persistence.Entity
 import javax.persistence.Id
 import javax.persistence.Lob
 
+// TODO There is duplicated logic between this and InMemoryIdentityService
 @ThreadSafe
 class PersistentIdentityService(override val trustRoot: X509Certificate,
                                 vararg caCertificates: X509Certificate) : SingletonSerializeAsToken(), IdentityService {
@@ -124,6 +125,11 @@ class PersistentIdentityService(override val trustRoot: X509Certificate,
             }
             throw e
         }
+
+        // TODO This only works under (the incorrect implementation of) devMode where the node CA cert is given a different
+        // subject to the node's legal name (see ConfigUtilities.createKeystoreForCordaNode). If the node registers with
+        // the doorman then the logic below deosn't work as the node CA subject correctly matches the node's legal name.
+        // We need a correct way of identifying the node CA cert, perhaps with a flag. This same issue applies to InMemoryIdentityService
 
         // Ensure we record the first identity of the same name, first
         val identityPrincipal = identity.name.x500Principal
