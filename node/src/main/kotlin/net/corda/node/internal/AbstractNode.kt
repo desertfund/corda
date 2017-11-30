@@ -70,6 +70,7 @@ import rx.Scheduler
 import java.io.IOException
 import java.io.NotSerializableException
 import java.lang.reflect.InvocationTargetException
+import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyStoreException
 import java.security.PublicKey
@@ -610,9 +611,22 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
     }
 
     private fun readNetworkParameters() {
-        val file = configuration.baseDirectory / "network-parameters"
-        networkParameters = file.readAll().deserialize<SignedData<NetworkParameters>>().verified()
-        log.info(networkParameters.toString())
+        var latestEpoch = 0
+        var latestParams: NetworkParameters? = null
+        // Load network parameters with the latest known epoch.
+        for (paramFile in Files.list(configuration.baseDirectory)) {
+            if ("network-parameters" !in paramFile.toString())
+                continue
+            val contents = paramFile.readAll().deserialize<SignedData<NetworkParameters>>().verified()
+            val epoch = contents.epoch
+            if (latestEpoch < epoch) {
+                latestEpoch = epoch
+                latestParams = contents
+            }
+        }
+        checkNotNull(latestParams) { "Couldn't find network parameters file" }
+        networkParameters = latestParams!!
+        log.info("Loaded the latest known version of network parameters $latestParams")
         check(networkParameters.minimumPlatformVersion <= versionInfo.platformVersion) { "Node is too old for the network" }
     }
 
