@@ -276,15 +276,20 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             keyPairs += notaryIdentityKeyPair
             notaryIdentity
         }
-        // Check if we have already stored a version of 'our own' NodeInfo, this is to avoid regenerating it with
-        // a different timestamp
-        val previouslyGeneratedInfo = networkMapCache.getNodesByLegalName(myLegalName).firstOrNull()
-        val info = previouslyGeneratedInfo ?: NodeInfo(
+        var info = NodeInfo(
                 myAddresses(),
                 listOf(identity, myNotaryIdentity).filterNotNull(),
                 versionInfo.platformVersion,
                 platformClock.instant().toEpochMilli()
         )
+        // Check if we have already stored a version of 'our own' NodeInfo, this is to avoid regenerating it with
+        // a different timestamp.
+        networkMapCache.getNodesByLegalName(myLegalName).firstOrNull()?.let {
+            if (info.copy(serial = it.serial) == it) {
+                info = it
+            }
+        }
+        //val info =
         return Pair(keyPairs.toSet(), info)
     }
 
