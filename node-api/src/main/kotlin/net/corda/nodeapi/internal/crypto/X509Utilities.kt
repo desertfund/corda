@@ -1,18 +1,17 @@
 package net.corda.nodeapi.internal.crypto
 
+import net.corda.core.CordaOID
 import net.corda.core.crypto.Crypto
+import net.corda.core.crypto.IdentityRoleExtension
 import net.corda.core.crypto.SignatureScheme
 import net.corda.core.crypto.random63BitValue
 import net.corda.core.identity.CordaX500Name
+import net.corda.core.identity.Role
 import net.corda.core.internal.read
-import net.corda.core.internal.write
 import net.corda.core.internal.x500Name
 import net.corda.core.utilities.days
 import net.corda.core.utilities.millis
-import org.bouncycastle.asn1.ASN1EncodableVector
-import org.bouncycastle.asn1.ASN1Sequence
-import org.bouncycastle.asn1.DERSequence
-import org.bouncycastle.asn1.DERUTF8String
+import org.bouncycastle.asn1.*
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x509.*
@@ -27,10 +26,8 @@ import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 import org.bouncycastle.util.io.pem.PemReader
-import java.io.FileWriter
 import java.io.InputStream
 import java.math.BigInteger
-import java.nio.file.Files
 import java.nio.file.Path
 import java.security.KeyPair
 import java.security.PublicKey
@@ -194,14 +191,16 @@ object X509Utilities {
      * @param subjectPublicKey public key of the certificate subject.
      * @param validityWindow the time period the certificate is valid for.
      * @param nameConstraints any name constraints to impose on certificates signed by the generated certificate.
+     * @param role the Corda identity role the certificate represents, or null if none (i.e. an intermediate CA or above).
      */
     fun createCertificate(certificateType: CertificateType,
                           issuer: CordaX500Name,
                           subject: CordaX500Name,
                           subjectPublicKey: PublicKey,
                           validityWindow: Pair<Date, Date>,
-                          nameConstraints: NameConstraints? = null): X509v3CertificateBuilder {
-        return createCertificate(certificateType, issuer.x500Name, subject.x500Name, subjectPublicKey, validityWindow, nameConstraints)
+                          nameConstraints: NameConstraints? = null,
+                          role: Role? = null): X509v3CertificateBuilder {
+        return createCertificate(certificateType, issuer.x500Name, subject.x500Name, subjectPublicKey, validityWindow, nameConstraints, role)
     }
 
     /**
@@ -212,13 +211,15 @@ object X509Utilities {
      * @param subjectPublicKey public key of the certificate subject.
      * @param validityWindow the time period the certificate is valid for.
      * @param nameConstraints any name constraints to impose on certificates signed by the generated certificate.
+     * @param role the Corda identity role the certificate represents, or null if none (i.e. an intermediate CA or above).
      */
     internal fun createCertificate(certificateType: CertificateType,
                                    issuer: X500Name,
                                    subject: X500Name,
                                    subjectPublicKey: PublicKey,
                                    validityWindow: Pair<Date, Date>,
-                                   nameConstraints: NameConstraints? = null): X509v3CertificateBuilder {
+                                   nameConstraints: NameConstraints? = null,
+                                   role: Role?): X509v3CertificateBuilder {
 
         val serial = BigInteger.valueOf(random63BitValue())
         val keyPurposes = DERSequence(ASN1EncodableVector().apply { certificateType.purposes.forEach { add(it) } })
@@ -231,9 +232,13 @@ object X509Utilities {
                 .addExtension(Extension.keyUsage, false, certificateType.keyUsage)
                 .addExtension(Extension.extendedKeyUsage, false, keyPurposes)
 
+        if (role != null) {
+            builder.addExtension(ASN1ObjectIdentifier(CordaOID.X509_EXTENSION_CORDA_ROLE), false, IdentityRoleExtension(role))
+        }
         if (nameConstraints != null) {
             builder.addExtension(Extension.nameConstraints, true, nameConstraints)
         }
+
         return builder
     }
 
@@ -246,6 +251,7 @@ object X509Utilities {
      * @param subjectPublicKey public key of the certificate subject.
      * @param validityWindow the time period the certificate is valid for.
      * @param nameConstraints any name constraints to impose on certificates signed by the generated certificate.
+     * @param role the Corda identity role the certificate represents, or null if none (i.e. an intermediate CA or above).
      */
     fun createCertificate(certificateType: CertificateType,
                           issuer: X500Name,
@@ -253,8 +259,9 @@ object X509Utilities {
                           subject: CordaX500Name,
                           subjectPublicKey: PublicKey,
                           validityWindow: Pair<Date, Date>,
-                          nameConstraints: NameConstraints? = null): X509CertificateHolder {
-        val builder = createCertificate(certificateType, issuer, subject.x500Name, subjectPublicKey, validityWindow, nameConstraints)
+                          nameConstraints: NameConstraints? = null,
+                          role: Role? = null): X509CertificateHolder {
+        val builder = createCertificate(certificateType, issuer, subject.x500Name, subjectPublicKey, validityWindow, nameConstraints, role)
         return builder.build(issuerSigner).apply {
             require(isValidOn(Date()))
         }
@@ -269,6 +276,7 @@ object X509Utilities {
      * @param subjectPublicKey public key of the certificate subject.
      * @param validityWindow the time period the certificate is valid for.
      * @param nameConstraints any name constraints to impose on certificates signed by the generated certificate.
+     * @param role the Corda identity role the certificate represents, or null if none (i.e. an intermediate CA or above).
      */
     fun createCertificate(certificateType: CertificateType,
                           issuer: X500Name,
@@ -276,10 +284,11 @@ object X509Utilities {
                           subject: X500Name,
                           subjectPublicKey: PublicKey,
                           validityWindow: Pair<Date, Date>,
-                          nameConstraints: NameConstraints? = null): X509CertificateHolder {
+                          nameConstraints: NameConstraints? = null,
+                          role: Role? = null): X509CertificateHolder {
         val signatureScheme = Crypto.findSignatureScheme(issuerKeyPair.private)
         val provider = Crypto.findProvider(signatureScheme.providerName)
-        val builder = createCertificate(certificateType, issuer, subject, subjectPublicKey, validityWindow, nameConstraints)
+        val builder = createCertificate(certificateType, issuer, subject, subjectPublicKey, validityWindow, nameConstraints, role)
 
         val signer = ContentSignerBuilder.build(signatureScheme, issuerKeyPair.private, provider)
         return builder.build(signer).apply {
