@@ -175,9 +175,10 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         log.info("Generating nodeInfo ...")
         initCertificate()
         val schemaService = NodeSchemaService(cordappLoader.cordappSchemas)
-        initialiseDatabasePersistence(schemaService,  makeIdentityService()) { database ->
+        val (identity, identityKeyPair) = obtainIdentity(notaryConfig = null)
+        initialiseDatabasePersistence(schemaService,  makeIdentityService(identity.certificate)) { database ->
             val persistentNetworkMapCache = PersistentNetworkMapCache(database)
-            val (keyPairs, info) = initNodeInfo(persistentNetworkMapCache)
+            val (keyPairs, info) = initNodeInfo(persistentNetworkMapCache, identity, identityKeyPair)
             val identityKeypair = keyPairs.first { it.public == info.legalIdentities.first().owningKey }
             val serialisedNodeInfo = info.serialize()
             val signature = identityKeypair.sign(serialisedNodeInfo)
@@ -191,15 +192,15 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         log.info("Node starting up ...")
         initCertificate()
         val schemaService = NodeSchemaService(cordappLoader.cordappSchemas)
-        val identityService = makeIdentityService()
+        val (identity, identityKeyPair) = obtainIdentity(notaryConfig = null)
+        val identityService = makeIdentityService(identity.certificate)
         // Do all of this in a database transaction so anything that might need a connection has one.
         val (startedImpl, schedulerService) = initialiseDatabasePersistence(schemaService, identityService) { database ->
             val networkMapCache = NetworkMapCacheImpl(PersistentNetworkMapCache(database), identityService)
-            val (keyPairs, info) = initNodeInfo(networkMapCache)
+            val (keyPairs, info) = initNodeInfo(networkMapCache, identity, identityKeyPair)
             identityService.loadIdentities(info.legalIdentitiesAndCerts)
             val transactionStorage = makeTransactionStorage(database)
             val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, database, info, identityService, networkMapCache)
-            services.networkMapCache.addNode(info)
             val notaryService = makeNotaryService(nodeServices, database)
             val smm = makeStateMachineManager(database)
             val flowStarter = FlowStarterImpl(serverThread, smm)
@@ -267,8 +268,9 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         InteractiveShell.startShell(configuration, rpcOps, userService, _services.identityService, _services.database)
     }
 
-    private fun initNodeInfo(networkMapCache: NetworkMapCacheBaseInternal): Pair<Set<KeyPair>, NodeInfo> {
-        val (identity, identityKeyPair) = obtainIdentity(notaryConfig = null)
+    private fun initNodeInfo(networkMapCache: NetworkMapCacheBaseInternal,
+                             identity: PartyAndCertificate,
+                             identityKeyPair: KeyPair): Pair<Set<KeyPair>, NodeInfo> {
         val keyPairs = mutableSetOf(identityKeyPair)
 
         myNotaryIdentity = configuration.notary?.let {
@@ -276,6 +278,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             keyPairs += notaryIdentityKeyPair
             notaryIdentity
         }
+
         var info = NodeInfo(
                 myAddresses(),
                 listOf(identity, myNotaryIdentity).filterNotNull(),
@@ -289,8 +292,8 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
                 info = it
             }
         }
-        //val info =
-        return Pair(keyPairs.toSet(), info)
+        networkMapCache.addNode(info)
+        return Pair(keyPairs, info)
     }
 
     protected abstract fun myAddresses(): List<NetworkHostAndPort>
@@ -633,10 +636,13 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         }
     }
 
-    private fun makeIdentityService(): PersistentIdentityService {
+    private fun makeIdentityService(cert: X509Certificate): PersistentIdentityService {
         val trustStore = KeyStoreWrapper(configuration.trustStoreFile, configuration.trustStorePassword)
+        val caKeyStore = KeyStoreWrapper(configuration.nodeKeystore, configuration.keyStorePassword)
         val trustRoot = trustStore.getX509Certificate(X509Utilities.CORDA_ROOT_CA)
-        return PersistentIdentityService(trustRoot)
+        val clientCa = caKeyStore.certificateAndKeyPair(X509Utilities.CORDA_CLIENT_CA)
+        val caCertificates = arrayOf(cert, clientCa.certificate.cert)
+        return PersistentIdentityService(trustRoot, *caCertificates)
     }
 
     protected abstract fun makeTransactionVerifierService(): TransactionVerifierService
