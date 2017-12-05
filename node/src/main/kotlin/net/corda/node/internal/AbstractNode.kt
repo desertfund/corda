@@ -10,7 +10,9 @@ import net.corda.confidential.SwapIdentitiesHandler
 import net.corda.core.CordaException
 import net.corda.core.concurrent.CordaFuture
 import net.corda.core.context.InvocationContext
+import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.SignedData
+import net.corda.core.crypto.sha256
 import net.corda.core.crypto.sign
 import net.corda.core.flows.*
 import net.corda.core.identity.CordaX500Name
@@ -68,7 +70,6 @@ import org.slf4j.Logger
 import rx.Observable
 import rx.Scheduler
 import java.io.IOException
-import java.io.NotSerializableException
 import java.lang.reflect.InvocationTargetException
 import java.nio.file.Files
 import java.security.KeyPair
@@ -193,7 +194,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         log.info("Node starting up ...")
         initCertificate()
         val (keyPairs, info) = initNodeInfo()
-        readNetworkParameters()
+        val currentParametersHash = readNetworkParameters()
         val schemaService = NodeSchemaService(cordappLoader.cordappSchemas)
         val identityService = makeIdentityService(info)
         // Do all of this in a database transaction so anything that might need a connection has one.
@@ -235,7 +236,9 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
 
         val networkMapUpdater = NetworkMapUpdater(services.networkMapCache,
                 NodeInfoWatcher(configuration.baseDirectory, getRxIoScheduler(), Duration.ofMillis(configuration.additionalNodeInfoPollingFrequencyMsec)),
-                networkMapClient)
+                networkMapClient,
+                currentParametersHash)
+        networkMapUpdater.parametersUpdates.subscribe { handleNetworkParametersUpdate(it) }
         runOnStop += networkMapUpdater::close
 
         networkMapUpdater.updateNodeInfo(services.myInfo) {
@@ -265,6 +268,12 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
      * or [rx.internal.schedulers.CachedThreadScheduler] (with shutdown registered with [runOnStop]) for shared-JVM testing.
      */
     protected abstract fun getRxIoScheduler(): Scheduler
+
+    // TODO NetworkParameters updates are not implemented yet. This handling is not ideal, because we simply shutdown node, which can cause some problems.
+    private fun handleNetworkParametersUpdate(newParametersHash: SecureHash) {
+        throw IllegalArgumentException("Network map is advertising different parametersHash than the ones node is currently using.\n" +
+                "New hash: $newParametersHash. Please update parameters file.")
+    }
 
     open fun startShell(rpcOps: CordaRPCOps) {
         InteractiveShell.startShell(configuration, rpcOps, userService, _services.identityService, _services.database)
@@ -610,24 +619,28 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         return PersistentKeyManagementService(identityService, keyPairs)
     }
 
-    private fun readNetworkParameters() {
+    private fun readNetworkParameters(): SecureHash {
         var latestEpoch = 0
         var latestParams: NetworkParameters? = null
+        var latestParamsHash: SecureHash? = null
         // Load network parameters with the latest known epoch.
         for (paramFile in Files.list(configuration.baseDirectory)) {
             if ("network-parameters" !in paramFile.toString())
                 continue
-            val contents = paramFile.readAll().deserialize<SignedData<NetworkParameters>>().verified()
-            val epoch = contents.epoch
+            val contents = paramFile.readAll()
+            val params = contents.deserialize<SignedData<NetworkParameters>>().verified()
+            val epoch = params.epoch
             if (latestEpoch < epoch) {
                 latestEpoch = epoch
-                latestParams = contents
+                latestParams = params
+                latestParamsHash = contents.sha256()
             }
         }
         checkNotNull(latestParams) { "Couldn't find network parameters file" }
         networkParameters = latestParams!!
         log.info("Loaded the latest known version of network parameters $latestParams")
         check(networkParameters.minimumPlatformVersion <= versionInfo.platformVersion) { "Node is too old for the network" }
+        return latestParamsHash!!
     }
 
     private fun makeCoreNotaryService(notaryConfig: NotaryConfig, database: CordaPersistence): NotaryService {
