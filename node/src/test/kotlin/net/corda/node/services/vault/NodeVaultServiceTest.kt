@@ -547,8 +547,7 @@ class NodeVaultServiceTest {
 
         database.transaction {
             val moveBuilder = TransactionBuilder(notary).apply {
-                val changeIdentity = services.keyManagementService.freshKeyAndCert(identity, false)
-                Cash.generateSpend(services, this, Amount(1000, GBP), changeIdentity, thirdPartyIdentity)
+                Cash.generateSpend(services, this, Amount(1000, GBP), identity, thirdPartyIdentity)
             }
             val moveTx = moveBuilder.toWireTransaction(services)
             vaultService.notify(StatesToRecord.ONLY_RELEVANT, moveTx)
@@ -605,7 +604,7 @@ class NodeVaultServiceTest {
         // Move cash
         val moveTxBuilder = database.transaction {
             TransactionBuilder(newNotary).apply {
-                Cash.generateSpend(services, this, Amount(amount.quantity, GBP), anonymousIdentity, thirdPartyIdentity.party.anonymise())
+                Cash.generateSpend(services, this, Amount(amount.quantity, GBP), identity, thirdPartyIdentity.party.anonymise())
             }
         }
         val moveTx = moveTxBuilder.toWireTransaction(services)
