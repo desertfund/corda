@@ -4,22 +4,27 @@ import net.corda.core.node.NodeInfo
 import net.corda.core.utilities.seconds
 import net.corda.testing.ALICE
 import net.corda.testing.BOB
+import net.corda.testing.SerializationEnvironmentRule
 import net.corda.testing.driver.NodeHandle
 import net.corda.testing.driver.PortAllocation
 import net.corda.testing.driver.driver
 import net.corda.testing.node.network.NetworkMapServer
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.Rule
 import org.junit.Test
 import java.net.URL
 
 class NetworkMapClientTest {
     private val portAllocation = PortAllocation.Incremental(10000)
+    @Rule
+    @JvmField
+    val testSerialization = SerializationEnvironmentRule(true)
 
     @Test
     fun `nodes can see each other using the http network map`() {
         NetworkMapServer(1.seconds, portAllocation.nextHostAndPort()).use {
             val (host, port) = it.start()
-            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port")) {
+            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port"), initialiseSerialization = false) {
                 val alice = startNode(providedName = ALICE.name)
                 val bob = startNode(providedName = BOB.name)
 
@@ -38,7 +43,7 @@ class NetworkMapClientTest {
     fun `nodes process network map add updates correctly when adding new node to network map`() {
         NetworkMapServer(1.seconds, portAllocation.nextHostAndPort()).use {
             val (host, port) = it.start()
-            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port")) {
+            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port"), initialiseSerialization = false) {
                 val alice = startNode(providedName = ALICE.name)
                 val notaryNode = defaultNotaryNode.get()
                 val aliceNode = alice.get()
@@ -63,7 +68,7 @@ class NetworkMapClientTest {
     fun `nodes process network map remove updates correctly`() {
         NetworkMapServer(1.seconds, portAllocation.nextHostAndPort()).use {
             val (host, port) = it.start()
-            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port")) {
+            driver(portAllocation = portAllocation, compatibilityZoneURL = URL("http://$host:$port"), initialiseSerialization = false) {
                 val alice = startNode(providedName = ALICE.name)
                 val bob = startNode(providedName = BOB.name)
 

@@ -14,6 +14,7 @@ import net.corda.nodeapi.internal.crypto.X509Utilities.CORDA_CLIENT_CA
 import net.corda.nodeapi.internal.crypto.X509Utilities.CORDA_INTERMEDIATE_CA
 import net.corda.nodeapi.internal.crypto.X509Utilities.CORDA_ROOT_CA
 import net.corda.testing.ALICE_NAME
+import net.corda.testing.SerializationEnvironmentRule
 import net.corda.testing.driver.PortAllocation
 import net.corda.testing.driver.driver
 import net.corda.testing.node.network.NetworkMapServer
@@ -23,6 +24,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -47,6 +49,9 @@ private val portAllocation = PortAllocation.Incremental(13000)
  * Driver based tests for [NetworkRegistrationHelper]
  */
 class NetworkRegistrationHelperDriverTest {
+    @Rule
+    @JvmField
+    val testSerialization = SerializationEnvironmentRule(true)
     val rootCertAndKeyPair = createSelfKeyAndSelfSignedCertificate()
     val rootCert = rootCertAndKeyPair.certificate
     val handler = RegistrationHandler(rootCertAndKeyPair)
@@ -73,7 +78,8 @@ class NetworkRegistrationHelperDriverTest {
         driver(portAllocation = portAllocation,
                 compatibilityZoneURL = compatibilityZoneUrl,
                 startNodesInProcess = true,
-                rootCertificate = rootCert
+                rootCertificate = rootCert,
+                initialiseSerialization = false
         ) {
             startNode(providedName = ALICE_NAME, initialRegistration = true).get()
         }
@@ -89,7 +95,8 @@ class NetworkRegistrationHelperDriverTest {
     fun `node registration without root cert`() {
         driver(portAllocation = portAllocation,
                 compatibilityZoneURL = compatibilityZoneUrl,
-                startNodesInProcess = true
+                startNodesInProcess = true,
+                initialiseSerialization = false
         ) {
             assertThatThrownBy {
                 startNode(providedName = ALICE_NAME, initialRegistration = true).get()
@@ -102,7 +109,8 @@ class NetworkRegistrationHelperDriverTest {
         driver(portAllocation = portAllocation,
                 compatibilityZoneURL = compatibilityZoneUrl,
                 startNodesInProcess = true,
-                rootCertificate = createSelfKeyAndSelfSignedCertificate().certificate
+                rootCertificate = createSelfKeyAndSelfSignedCertificate().certificate,
+                initialiseSerialization = false
         ) {
             assertThatThrownBy {
                 startNode(providedName = ALICE_NAME, initialRegistration = true).get()
