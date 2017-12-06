@@ -68,6 +68,7 @@ import org.apache.activemq.artemis.utils.ReusableLatch
 import org.hibernate.type.descriptor.java.JavaTypeDescriptorRegistry
 import org.slf4j.Logger
 import rx.Observable
+import rx.Scheduler
 import java.io.IOException
 import java.lang.reflect.InvocationTargetException
 import java.security.KeyPair
@@ -191,8 +192,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         val (startedImpl, schedulerService) = initialiseDatabasePersistence(schemaService, identityService) { database ->
             identityService.loadIdentities(info.legalIdentitiesAndCerts)
             val transactionStorage = makeTransactionStorage(database)
-            val stateLoader = StateLoaderImpl(transactionStorage)
-            val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, stateLoader, database, info, identityService)
+            val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, database, info, identityService)
             val notaryService = makeNotaryService(nodeServices, database)
             val smm = makeStateMachineManager(database)
             val flowStarter = FlowStarterImpl(serverThread, smm)
@@ -200,7 +200,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
                     platformClock,
                     database,
                     flowStarter,
-                    stateLoader,
+                    transactionStorage,
                     unfinishedSchedules = busyNodeLatch,
                     serverThread = serverThread)
             if (serverThread is ExecutorService) {
@@ -225,7 +225,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         }
 
         val networkMapUpdater = NetworkMapUpdater(services.networkMapCache,
-                NodeInfoWatcher(configuration.baseDirectory, Duration.ofMillis(configuration.additionalNodeInfoPollingFrequencyMsec)),
+                NodeInfoWatcher(configuration.baseDirectory, getRxIoScheduler(), Duration.ofMillis(configuration.additionalNodeInfoPollingFrequencyMsec)),
                 networkMapClient)
         runOnStop += networkMapUpdater::close
 
@@ -250,6 +250,12 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             _started = this
         }
     }
+
+    /**
+     * Should be [rx.schedulers.Schedulers.io] for production,
+     * or [rx.internal.schedulers.CachedThreadScheduler] (with shutdown registered with [runOnStop]) for shared-JVM testing.
+     */
+    protected abstract fun getRxIoScheduler(): Scheduler
 
     open fun startShell(rpcOps: CordaRPCOps) {
         InteractiveShell.startShell(configuration, rpcOps, userService, _services.identityService, _services.database)
@@ -491,7 +497,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
      * Builds node internal, advertised, and plugin services.
      * Returns a list of tokenizable services to be added to the serialisation context.
      */
-    private fun makeServices(keyPairs: Set<KeyPair>, schemaService: SchemaService, transactionStorage: WritableTransactionStorage, stateLoader: StateLoader, database: CordaPersistence, info: NodeInfo, identityService: IdentityService): MutableList<Any> {
+    private fun makeServices(keyPairs: Set<KeyPair>, schemaService: SchemaService, transactionStorage: WritableTransactionStorage, database: CordaPersistence, info: NodeInfo, identityService: IdentityService): MutableList<Any> {
         checkpointStorage = DBCheckpointStorage()
         val metrics = MetricRegistry()
         attachments = NodeAttachmentService(metrics)
@@ -502,7 +508,6 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
                 keyManagementService,
                 schemaService,
                 transactionStorage,
-                stateLoader,
                 MonitoringService(metrics),
                 cordappProvider,
                 database,
@@ -715,18 +720,17 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             override val keyManagementService: KeyManagementService,
             override val schemaService: SchemaService,
             override val validatedTransactions: WritableTransactionStorage,
-            private val stateLoader: StateLoader,
             override val monitoringService: MonitoringService,
             override val cordappProvider: CordappProviderInternal,
             override val database: CordaPersistence,
             override val myInfo: NodeInfo
-    ) : SingletonSerializeAsToken(), ServiceHubInternal, StateLoader by stateLoader {
+    ) : SingletonSerializeAsToken(), ServiceHubInternal, StateLoader by validatedTransactions {
         override val rpcFlows = ArrayList<Class<out FlowLogic<*>>>()
         override val stateMachineRecordedTransactionMapping = DBTransactionMappingStorage()
         override val auditService = DummyAuditService()
         override val transactionVerifierService by lazy { makeTransactionVerifierService() }
         override val networkMapCache by lazy { NetworkMapCacheImpl(PersistentNetworkMapCache(database), identityService) }
-        override val vaultService by lazy { makeVaultService(keyManagementService, stateLoader, database.hibernateConfig) }
+        override val vaultService by lazy { makeVaultService(keyManagementService, validatedTransactions, database.hibernateConfig) }
         override val contractUpgradeService by lazy { ContractUpgradeServiceImpl() }
         override val attachments: AttachmentStorage get() = this@AbstractNode.attachments
         override val networkService: MessagingService get() = network

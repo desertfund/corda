@@ -1,12 +1,9 @@
 package net.corda.nodeapi.internal
 
-import com.nhaarman.mockito_kotlin.doReturn
-import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.contracts.*
 import net.corda.core.crypto.SecureHash
 import net.corda.core.internal.declaredField
 import net.corda.core.internal.toWireTransaction
-import net.corda.core.node.ServicesForResolution
 import net.corda.core.node.services.AttachmentStorage
 import net.corda.core.serialization.*
 import net.corda.core.utilities.ByteSequence
@@ -44,14 +41,11 @@ class AttachmentsClassLoaderTests {
     @Rule
     @JvmField
     val testSerialization = SerializationEnvironmentRule()
-    private val storage = MockAttachmentStorage()
-    private val cordappProvider = CordappProviderImpl(CordappLoader.createDevMode(listOf(ISOLATED_CONTRACTS_JAR_PATH)), storage)
+    private val attachments = MockAttachmentStorage()
+    private val cordappProvider = CordappProviderImpl(CordappLoader.createDevMode(listOf(ISOLATED_CONTRACTS_JAR_PATH)), attachments)
     private val cordapp get() = cordappProvider.cordapps.first()
     private val attachmentId get() = cordappProvider.getCordappAttachmentId(cordapp)!!
     private val appContext get() = cordappProvider.getAppContext(cordapp)
-    private val serviceHub = rigorousMock<ServicesForResolution>().also {
-        doReturn(cordappProvider).whenever(it).cordappProvider
-    }
 
     // These ClassLoaders work together to load 'AnotherDummyContract' in a disposable way, such that even though
     // the class may be on the unit test class path (due to default IDE settings, etc), it won't be loaded into the
@@ -68,7 +62,6 @@ class AttachmentsClassLoaderTests {
     }
 
     class ClassLoaderForTests : URLClassLoader(arrayOf(ISOLATED_CONTRACTS_JAR_PATH), FilteringClassLoader)
-
     @Test
     fun `dynamically load AnotherDummyContract from isolated contracts jar`() {
         ClassLoaderForTests().use { child ->
@@ -98,7 +91,10 @@ class AttachmentsClassLoaderTests {
 
     @Test
     fun `test MockAttachmentStorage open as jar`() {
-        val attachment = storage.openAttachment(attachmentId)!!
+        val storage = attachments
+        val key = attachmentId
+        val attachment = storage.openAttachment(key)!!
+
         val jar = attachment.openAsJAR()
 
         assertNotNull(jar.nextEntry)
@@ -106,6 +102,7 @@ class AttachmentsClassLoaderTests {
 
     @Test
     fun `test overlapping file exception`() {
+        val storage = attachments
         val att0 = attachmentId
         val att1 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file.txt", "some data")))
         val att2 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file.txt", "some other data")))
@@ -117,6 +114,7 @@ class AttachmentsClassLoaderTests {
 
     @Test
     fun `basic`() {
+        val storage = attachments
         val att0 = attachmentId
         val att1 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file1.txt", "some data")))
         val att2 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file2.txt", "some other data")))
@@ -148,6 +146,7 @@ class AttachmentsClassLoaderTests {
 
     @Test
     fun `loading class AnotherDummyContract`() {
+        val storage = attachments
         val att0 = attachmentId
         val att1 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file1.txt", "some data")))
         val att2 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file2.txt", "some other data")))
@@ -171,6 +170,7 @@ class AttachmentsClassLoaderTests {
         val contract = createContract2Cash()
 
         val bytes = contract.serialize()
+        val storage = attachments
         val att0 = attachmentId
         val att1 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file1.txt", "some data")))
         val att2 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file2.txt", "some other data")))
@@ -196,6 +196,7 @@ class AttachmentsClassLoaderTests {
         val context2 = SerializationFactory.defaultFactory.defaultContext.withWhitelisted(data.contract.javaClass)
 
         val bytes = data.serialize(context = context2)
+        val storage = attachments
         val att0 = attachmentId
         val att1 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file1.txt", "some data")))
         val att2 = storage.importAttachment(ByteArrayInputStream(fakeAttachment("file2.txt", "some other data")))
@@ -255,11 +256,11 @@ class AttachmentsClassLoaderTests {
                 .withWhitelisted(contract.javaClass)
                 .withWhitelisted(Class.forName("$ISOLATED_CONTRACT_CLASS_NAME\$State", true, child))
                 .withWhitelisted(Class.forName("$ISOLATED_CONTRACT_CLASS_NAME\$Commands\$Create", true, child))
-                .withAttachmentStorage(storage)
+                .withAttachmentStorage(attachments)
                 .withClassLoader(child)
 
         val bytes = run {
-            val wireTransaction = tx.toWireTransaction(serviceHub, context)
+            val wireTransaction = tx.toWireTransaction(cordappProvider, context)
             wireTransaction.serialize(context = context)
         }
         val copiedWireTransaction = bytes.deserialize(context = context)
@@ -281,9 +282,9 @@ class AttachmentsClassLoaderTests {
                 val attachmentRef = attachmentId
                 val bytes = run {
                     val outboundContext = SerializationFactory.defaultFactory.defaultContext
-                            .withAttachmentStorage(storage)
+                            .withAttachmentStorage(attachments)
                             .withClassLoader(child)
-                    val wireTransaction = tx.toWireTransaction(serviceHub, outboundContext)
+                    val wireTransaction = tx.toWireTransaction(cordappProvider, outboundContext)
                     wireTransaction.serialize(context = outboundContext)
                 }
                 // use empty attachmentStorage
@@ -316,7 +317,7 @@ class AttachmentsClassLoaderTests {
                     .defaultFactory
                     .defaultContext
                     .withWhitelisted(contract.javaClass)
-                    .withAttachmentStorage(storage)
+                    .withAttachmentStorage(attachments)
                     .withAttachmentsClassLoader(listOf(attachmentRef))
 
             // Serialize with custom context to avoid populating the default context with the specially loaded class
@@ -343,7 +344,7 @@ class AttachmentsClassLoaderTests {
                         .defaultFactory
                         .defaultContext
                         .withWhitelisted(contract.javaClass)
-                        .withAttachmentStorage(storage)
+                        .withAttachmentStorage(attachments)
                         .withAttachmentsClassLoader(listOf(attachmentRef))
                 serialized.deserialize(context = inboundContext)
             }
