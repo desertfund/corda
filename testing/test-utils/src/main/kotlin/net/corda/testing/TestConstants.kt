@@ -12,6 +12,7 @@ import net.corda.core.identity.Party
 import net.corda.core.identity.PartyAndCertificate
 import net.corda.core.internal.toX509CertHolder
 import net.corda.nodeapi.internal.crypto.*
+import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.X509CertificateHolder
 import java.math.BigInteger
 import java.security.KeyPair
@@ -70,18 +71,15 @@ val DEV_CA: CertificateAndKeyPair by lazy {
     caKeyStore.getCertificateAndKeyPair(X509Utilities.CORDA_INTERMEDIATE_CA, "cordacadevkeypass")
 }
 val DEV_NODE_CA: CertificateAndKeyPair by lazy {
-    val issuerCertificate = DEV_CA.certificate
     val issuerKeyPair = DEV_CA.keyPair
     val keyPair = generateKeyPair()
-    val subject = CordaX500Name(organisation = X509Utilities.CORDA_CLIENT_CA_CN, locality = "London", country = "GB")
-
+    val name = CordaX500Name(organisation = "Corda Dev Client CA", locality = "London", country = "GB")
     val signatureScheme = Crypto.findSignatureScheme(issuerKeyPair.private)
     val provider = Security.getProvider(signatureScheme.providerName)
-    val issuerSigner = ContentSignerBuilder.build(signatureScheme, issuerKeyPair.private, provider)
-
-    val certificate = X509Utilities.createCertificate(CertificateType.NODE_CA, issuerCertificate.subject, issuerSigner, subject,
-            keyPair.public, Pair(issuerCertificate.notBefore, issuerCertificate.notAfter))
-    CertificateAndKeyPair(certificate, keyPair)
+    val signer = ContentSignerBuilder.build(signatureScheme, issuerKeyPair.private, provider)
+    val cert = X509Utilities.createCertificate(CertificateType.NODE_CA, DEV_CA.certificate.issuer, signer, name,
+            keyPair.public, Pair(DEV_CA.certificate.notBefore, DEV_CA.certificate.notAfter))
+    CertificateAndKeyPair(cert, keyPair)
 }
 val DEV_TRUST_ROOT: X509CertificateHolder by lazy {
     // TODO: Should be identity scheme

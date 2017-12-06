@@ -138,7 +138,7 @@ fun getTestPartyAndCertificate(party: Party, trustRoot: CertificateAndKeyPair = 
 /**
  * Build a test party with a nonsense certificate authority for testing purposes.
  */
-fun getTestPartyAndCertificate(name: CordaX500Name, publicKey: PublicKey, trustRoot: CertificateAndKeyPair = DEV_CA): PartyAndCertificate {
+fun getTestPartyAndCertificate(name: CordaX500Name, publicKey: PublicKey, trustRoot: CertificateAndKeyPair = DEV_NODE_CA): PartyAndCertificate {
     return getTestPartyAndCertificate(Party(name, publicKey), trustRoot)
 }
 
