@@ -56,7 +56,7 @@ import kotlin.test.assertTrue
 
 class NodeVaultServiceTest {
     companion object {
-        private val cordappPackages = listOf("net.corda.finance.contracts.asset", CashSchemaV1::class.packageName)
+        private val cordappPackages = setOf("net.corda.finance.contracts.asset", CashSchemaV1::class.packageName)
     }
 
     @Rule

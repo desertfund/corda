@@ -45,7 +45,7 @@ fun ledger(
 @JvmOverloads
 fun transaction(
         transactionBuilder: TransactionBuilder = TransactionBuilder(notary = DUMMY_NOTARY),
-        cordappPackages: List<String> = emptyList(),
+        cordappPackages: Set<String> = emptySet(),
         dsl: TransactionDSL<TransactionDSLInterpreter>.() -> EnforceVerifyOrFail
 ) = ledger(services = MockServices(cordappPackages)) {
     dsl(TransactionDSL(TestTransactionDSLInterpreter(this.interpreter, transactionBuilder)))

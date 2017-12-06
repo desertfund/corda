@@ -50,7 +50,7 @@ class NodeInterestRatesTest {
 
     private val DUMMY_CASH_ISSUER_KEY = generateKeyPair()
     private val DUMMY_CASH_ISSUER = Party(CordaX500Name(organisation = "Cash issuer", locality = "London", country = "GB"), DUMMY_CASH_ISSUER_KEY.public)
-    private val services = MockServices(listOf("net.corda.finance.contracts.asset"), DUMMY_CASH_ISSUER.name, DUMMY_CASH_ISSUER_KEY, MEGA_CORP_KEY)
+    private val services = MockServices(setOf("net.corda.finance.contracts.asset"), DUMMY_CASH_ISSUER.name, DUMMY_CASH_ISSUER_KEY, MEGA_CORP_KEY)
     // This is safe because MockServices only ever have a single identity
     private val identity = services.myInfo.singleIdentity()
 
@@ -206,7 +206,7 @@ class NodeInterestRatesTest {
 
     @Test
     fun `network tearoff`() = withoutTestSerialization {
-        val mockNet = MockNetwork(cordappPackages = listOf("net.corda.finance.contracts", "net.corda.irs"))
+        val mockNet = MockNetwork(cordappPackages = setOf("net.corda.finance.contracts", "net.corda.irs"))
         val aliceNode = mockNet.createPartyNode(ALICE_NAME)
         val oracleNode = mockNet.createNode(MockNodeParameters(legalName = BOB_NAME)).apply {
             registerInitiatedFlow(NodeInterestRates.FixQueryHandler::class.java)

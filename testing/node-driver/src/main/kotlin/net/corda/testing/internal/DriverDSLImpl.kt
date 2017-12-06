@@ -71,7 +71,7 @@ class DriverDSLImpl(
         val isDebug: Boolean,
         val startNodesInProcess: Boolean,
         val waitForNodesToFinish: Boolean,
-        extraCordappPackagesToScan: List<String>,
+        extraCordappPackagesToScan: Set<String>,
         val notarySpecs: List<NotarySpec>
 ) : InternalDriverDSL {
     private var _executorService: ScheduledExecutorService? = null
@@ -451,7 +451,7 @@ class DriverDSLImpl(
                 executorService: ScheduledExecutorService,
                 nodeConf: NodeConfiguration,
                 config: Config,
-                cordappPackages: List<String>
+                cordappPackages: Set<String>
         ): CordaFuture<Pair<StartedNode<Node>, Thread>> {
             return executorService.fork {
                 log.info("Starting in-process Node ${nodeConf.myLegalName.organisation}")
@@ -474,7 +474,7 @@ class DriverDSLImpl(
                 quasarJarPath: String,
                 debugPort: Int?,
                 overriddenSystemProperties: Map<String, String>,
-                cordappPackages: List<String>,
+                cordappPackages: Set<String>,
                 maximumHeapSize: String
         ): Process {
             log.info("Starting out-of-process Node ${nodeConf.myLegalName.organisation}, debug port is " + (debugPort ?: "not enabled"))
@@ -640,7 +640,7 @@ fun <DI : DriverDSL, D : InternalDriverDSL, A> genericDriver(
         waitForNodesToFinish: Boolean = defaultParameters.waitForAllNodesToFinish,
         startNodesInProcess: Boolean = defaultParameters.startNodesInProcess,
         notarySpecs: List<NotarySpec>,
-        extraCordappPackagesToScan: List<String> = defaultParameters.extraCordappPackagesToScan,
+        extraCordappPackagesToScan: Set<String> = defaultParameters.extraCordappPackagesToScan,
         driverDslWrapper: (DriverDSLImpl) -> D,
         coerce: (D) -> DI, dsl: DI.() -> A
 ): A {

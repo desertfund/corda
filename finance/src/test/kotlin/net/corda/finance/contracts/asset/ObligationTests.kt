@@ -51,9 +51,9 @@ class ObligationTests {
             beneficiary = CHARLIE
     )
     private val outState = inState.copy(beneficiary = AnonymousParty(BOB_PUBKEY))
-    private val miniCorpServices = MockServices(listOf("net.corda.finance.contracts.asset"), MINI_CORP.name, MINI_CORP_KEY)
+    private val miniCorpServices = MockServices(setOf("net.corda.finance.contracts.asset"), MINI_CORP.name, MINI_CORP_KEY)
     private val notaryServices = MockServices(DUMMY_NOTARY_KEY)
-    private val mockService = MockServices(listOf("net.corda.finance.contracts.asset"))
+    private val mockService = MockServices(setOf("net.corda.finance.contracts.asset"))
 
     private fun cashObligationTestRoots(
             group: LedgerDSL<TestTransactionDSLInterpreter, TestLedgerDSLInterpreter>

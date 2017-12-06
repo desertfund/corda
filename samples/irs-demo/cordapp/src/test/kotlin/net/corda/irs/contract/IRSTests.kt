@@ -212,9 +212,9 @@ class IRSTests {
     @Rule
     @JvmField
     val testSerialization = SerializationEnvironmentRule()
-    private val megaCorpServices = MockServices(listOf("net.corda.irs.contract"), MEGA_CORP.name, MEGA_CORP_KEY)
-    private val miniCorpServices = MockServices(listOf("net.corda.irs.contract"), MINI_CORP.name, MINI_CORP_KEY)
-    private val notaryServices = MockServices(listOf("net.corda.irs.contract"), DUMMY_NOTARY.name, DUMMY_NOTARY_KEY)
+    private val megaCorpServices = MockServices(setOf("net.corda.irs.contract"), MEGA_CORP.name, MEGA_CORP_KEY)
+    private val miniCorpServices = MockServices(setOf("net.corda.irs.contract"), MINI_CORP.name, MINI_CORP_KEY)
+    private val notaryServices = MockServices(setOf("net.corda.irs.contract"), DUMMY_NOTARY.name, DUMMY_NOTARY_KEY)
 
     @Test
     fun ok() {
@@ -311,7 +311,7 @@ class IRSTests {
      */
     @Test
     fun generateIRSandFixSome() {
-        val services = MockServices(listOf("net.corda.irs.contract"))
+        val services = MockServices(setOf("net.corda.irs.contract"))
         var previousTXN = generateIRSTxn(1)
         previousTXN.toLedgerTransaction(services).verify()
         services.recordTransactions(previousTXN)

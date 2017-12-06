@@ -67,13 +67,13 @@ class CashTests {
     @Before
     fun setUp() {
         LogHelper.setLevel(NodeVaultService::class)
-        megaCorpServices = MockServices(listOf("net.corda.finance.contracts.asset"), MEGA_CORP.name, MEGA_CORP_KEY)
-        miniCorpServices = MockServices(listOf("net.corda.finance.contracts.asset"), MINI_CORP.name, MINI_CORP_KEY)
-        val notaryServices = MockServices(listOf("net.corda.finance.contracts.asset"), DUMMY_NOTARY.name, DUMMY_NOTARY_KEY)
+        megaCorpServices = MockServices(setOf("net.corda.finance.contracts.asset"), MEGA_CORP.name, MEGA_CORP_KEY)
+        miniCorpServices = MockServices(setOf("net.corda.finance.contracts.asset"), MINI_CORP.name, MINI_CORP_KEY)
+        val notaryServices = MockServices(setOf("net.corda.finance.contracts.asset"), DUMMY_NOTARY.name, DUMMY_NOTARY_KEY)
         val databaseAndServices = makeTestDatabaseAndMockServices(
                 listOf(generateKeyPair()),
                 makeTestIdentityService(listOf(MEGA_CORP_IDENTITY, MINI_CORP_IDENTITY, DUMMY_CASH_ISSUER_IDENTITY, DUMMY_NOTARY_IDENTITY)),
-                listOf("net.corda.finance.contracts.asset"),
+                setOf("net.corda.finance.contracts.asset"),
                 CordaX500Name("Me", "London", "GB"))
         database = databaseAndServices.first
         ourServices = databaseAndServices.second
@@ -774,7 +774,7 @@ class CashTests {
     // Double spend.
     @Test
     fun chainCashDoubleSpendFailsWith() {
-        val mockService = MockServices(listOf("net.corda.finance.contracts.asset"), MEGA_CORP.name, MEGA_CORP_KEY)
+        val mockService = MockServices(setOf("net.corda.finance.contracts.asset"), MEGA_CORP.name, MEGA_CORP_KEY)
 
         ledger(mockService) {
             unverifiedTransaction {

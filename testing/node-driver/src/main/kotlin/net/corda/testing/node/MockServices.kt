@@ -82,7 +82,7 @@ open class MockServices(
         @JvmStatic
         fun makeTestDatabaseAndMockServices(keys: List<KeyPair>,
                                             identityService: IdentityService,
-                                            cordappPackages: List<String> = emptyList(),
+                                            cordappPackages: Set<String> = emptySet(),
                                             initialIdentityName: CordaX500Name): Pair<CordaPersistence, MockServices> {
             val cordappLoader = CordappLoader.createWithTestPackages(cordappPackages)
             val dataSourceProps = makeTestDataSourceProperties()
@@ -107,8 +107,8 @@ open class MockServices(
     }
 
     constructor(cordappLoader: CordappLoader, initialIdentityName: CordaX500Name = MEGA_CORP.name, vararg keys: KeyPair) : this(cordappLoader, MockTransactionStorage(), initialIdentityName = initialIdentityName, keys = *keys)
-    constructor(cordappPackages: List<String>, initialIdentityName: CordaX500Name = MEGA_CORP.name, vararg keys: KeyPair) : this(CordappLoader.createWithTestPackages(cordappPackages), initialIdentityName = initialIdentityName, keys = *keys)
-    constructor(vararg keys: KeyPair) : this(emptyList(), MEGA_CORP.name, *keys)
+    constructor(cordappPackages: Set<String>, initialIdentityName: CordaX500Name = MEGA_CORP.name, vararg keys: KeyPair) : this(CordappLoader.createWithTestPackages(cordappPackages), initialIdentityName = initialIdentityName, keys = *keys)
+    constructor(vararg keys: KeyPair) : this(emptySet(), MEGA_CORP.name, *keys)
     constructor() : this(generateKeyPair())
 
     val key: KeyPair get() = keys.first()
