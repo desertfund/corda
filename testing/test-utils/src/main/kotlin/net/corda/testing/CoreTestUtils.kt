@@ -22,12 +22,14 @@ import net.corda.nodeapi.internal.crypto.CertificateType
 import net.corda.nodeapi.internal.crypto.X509CertificateFactory
 import net.corda.nodeapi.internal.crypto.X509Utilities
 import net.corda.nodeapi.internal.serialization.amqp.AMQP_ENABLED
+import org.bouncycastle.cert.X509CertificateHolder
 import org.mockito.Mockito.mock
 import org.mockito.internal.stubbing.answers.ThrowsException
 import java.lang.reflect.Modifier
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.PublicKey
+import java.security.cert.*
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -129,17 +131,23 @@ fun configureTestSSL(legalName: CordaX500Name = MEGA_CORP.name): SSLConfiguratio
     }
 }
 
-fun getTestPartyAndCertificate(party: Party, trustRoot: CertificateAndKeyPair = DEV_CA): PartyAndCertificate {
-    val certHolder = X509Utilities.createCertificate(CertificateType.WELL_KNOWN_IDENTITY, trustRoot.certificate, trustRoot.keyPair, party.name, party.owningKey)
-    val certPath = X509CertificateFactory().delegate.generateCertPath(listOf(certHolder.cert, trustRoot.certificate.cert))
+fun getTestPartyAndCertificate(party: Party): PartyAndCertificate {
+    val issuer: CertificateAndKeyPair = DEV_NODE_CA
+    val intermediate: CertificateAndKeyPair = DEV_CA
+    val trustRoot: X509CertificateHolder = DEV_TRUST_ROOT
+
+    val certHolder = X509Utilities.createCertificate(CertificateType.WELL_KNOWN_IDENTITY, issuer.certificate, issuer.keyPair, party.name, party.owningKey)
+    val pathElements = listOf(certHolder, issuer.certificate, intermediate.certificate, trustRoot)
+    val certPath = X509CertificateFactory().delegate.generateCertPath(pathElements.map(X509CertificateHolder::cert))
     return PartyAndCertificate(certPath)
 }
 
 /**
  * Build a test party with a nonsense certificate authority for testing purposes.
  */
-fun getTestPartyAndCertificate(name: CordaX500Name, publicKey: PublicKey, trustRoot: CertificateAndKeyPair = DEV_NODE_CA): PartyAndCertificate {
-    return getTestPartyAndCertificate(Party(name, publicKey), trustRoot)
+fun getTestPartyAndCertificate(name: CordaX500Name,
+                               publicKey: PublicKey): PartyAndCertificate {
+    return getTestPartyAndCertificate(Party(name, publicKey))
 }
 
 @Suppress("unused")
