@@ -78,7 +78,6 @@ import java.security.cert.X509Certificate
 import java.sql.Connection
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -636,12 +635,12 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         }
     }
 
-    private fun makeIdentityService(cert: X509Certificate): PersistentIdentityService {
+    private fun makeIdentityService(identityCert: X509Certificate): PersistentIdentityService {
         val trustStore = KeyStoreWrapper(configuration.trustStoreFile, configuration.trustStorePassword)
         val caKeyStore = KeyStoreWrapper(configuration.nodeKeystore, configuration.keyStorePassword)
         val trustRoot = trustStore.getX509Certificate(X509Utilities.CORDA_ROOT_CA)
         val clientCa = caKeyStore.certificateAndKeyPair(X509Utilities.CORDA_CLIENT_CA)
-        val caCertificates = arrayOf(cert, clientCa.certificate.cert)
+        val caCertificates = arrayOf(identityCert, clientCa.certificate.cert)
         return PersistentIdentityService(trustRoot, *caCertificates)
     }
 
